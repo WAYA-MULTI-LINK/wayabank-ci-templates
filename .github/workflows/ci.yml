@@ -213,8 +213,38 @@ jobs:
     steps:
       - name: Install ArgoCD CLI
         run: |
-          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          chmod +x /usr/local/bin/argocd
+          # Create a temporary directory for downloads
+          TEMP_DIR=$(mktemp -d)
+          cd $TEMP_DIR
+          
+          echo "Installing ArgoCD CLI..."
+          
+          # Try curl installation first
+          echo "Attempting to download ArgoCD CLI using curl..."
+          if curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64; then
+            echo "Download successful using curl"
+          else
+            echo "Curl download failed, trying wget..."
+            if wget -q https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 -O argocd; then
+              echo "Download successful using wget"
+            else
+              echo "Both curl and wget failed. Aborting."
+              exit 1
+            fi
+          fi
+          
+          # Make executable and move to bin directory
+          chmod +x argocd
+          echo "Moving ArgoCD CLI to /usr/local/bin with sudo..."
+          sudo mv argocd /usr/local/bin/
+          
+          # Verify installation
+          if argocd version --client 2>&1 | grep -q "argocd"; then
+            echo "ArgoCD CLI installed successfully"
+          else
+            echo "ArgoCD CLI installation verification failed"
+            exit 1
+          fi
 
       - name: Login to ArgoCD
         run: argocd login argocd.stg.wayabank.ng --username admin --password sb722vhvhq8RQKpB --insecure --grpc-web
@@ -228,3 +258,67 @@ jobs:
             echo "ERROR: ArgoCD app $TARGET_APP does not exist"
             exit 1
           fi
+
+      - name: Sync ArgoCD app
+        run: |
+          TARGET_APP="${REPO_SLUG}-${CI_ENVIRONMENT_NAME}"
+          echo "Syncing ArgoCD app: $TARGET_APP"
+          
+          # Start sync with retry logic
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SYNC_SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SYNC_SUCCESS" != "true" ]; do
+            echo "Attempt $((RETRY_COUNT+1)) of $MAX_RETRIES to sync application"
+            
+            if argocd app sync "$TARGET_APP" --timeout 300 --prune; then
+              echo "Sync command executed successfully"
+              SYNC_SUCCESS=true
+            else
+              echo "Sync attempt $((RETRY_COUNT+1)) failed"
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Waiting 10 seconds before retrying..."
+                sleep 10
+              fi
+            fi
+          done
+          
+          if [ "$SYNC_SUCCESS" != "true" ]; then
+            echo "Failed to sync application after $MAX_RETRIES attempts"
+            exit 1
+          fi
+          
+          # Wait for app to become healthy with timeout
+          echo "Waiting for application to become healthy..."
+          TIMEOUT=600  # 10 minutes timeout
+          START_TIME=$(date +%s)
+          HEALTH_STATUS=""
+          
+          while [ $(( $(date +%s) - $START_TIME )) -lt $TIMEOUT ]; do
+            HEALTH_STATUS=$(argocd app get "$TARGET_APP" -o json | grep health | grep status | head -1 | awk -F'"' '{print $4}')
+            echo "Current health status: $HEALTH_STATUS"
+            
+            if [ "$HEALTH_STATUS" = "Healthy" ]; then
+              echo "Application is healthy!"
+              break
+            elif [ "$HEALTH_STATUS" = "Degraded" ]; then
+              echo "Application health is degraded. Checking resources..."
+              argocd app get "$TARGET_APP" --hard-refresh
+              sleep 10
+            else
+              echo "Waiting for application to become healthy..."
+              sleep 10
+            fi
+          done
+          
+          # Final health check
+          if [ "$HEALTH_STATUS" != "Healthy" ]; then
+            echo "Application failed to become healthy within timeout period"
+            argocd app get "$TARGET_APP"
+            exit 1
+          fi
+          
+          echo "Application $TARGET_APP successfully synced and healthy!"
