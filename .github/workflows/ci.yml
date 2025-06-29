@@ -97,7 +97,19 @@ jobs:
           TAG="${REPO_NAME}-${BRANCH_NAME}-${SHORT_SHA}"
 
           REPO_SLUG=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')
-          REPO_SLUG=${REPO_SLUG#wayappay-chat-2.0-}
+          
+          # Extract service name by removing common prefixes
+          # Try multiple possible prefix patterns to handle different repo naming formats
+          if [[ $REPO_SLUG == waya-pay-chat-2* ]]; then
+            # For repos like waya-pay-chat-2-0-auth-service
+            REPO_SLUG=${REPO_SLUG#waya-pay-chat-2-0-}
+          elif [[ $REPO_SLUG == wayapay-chat-2* ]]; then
+            # For repos like wayapay-chat-2-0-auth-service
+            REPO_SLUG=${REPO_SLUG#wayapay-chat-2-0-}
+          elif [[ $REPO_SLUG == waya-* ]]; then
+            # For other waya prefixed repos
+            REPO_SLUG=${REPO_SLUG#waya-}
+          fi
 
           echo "REPO_NAME=${REPO_NAME}" >> $GITHUB_ENV
           echo "REPO_SLUG=${REPO_SLUG}" >> $GITHUB_ENV
@@ -139,8 +151,17 @@ jobs:
           cd waya-helm-charts
 
           FULL_IMAGE_WITH_TAG="${DOCKER_USERNAME}/microservice:${TAG}"
+          
+          # Debug information
+          echo "========== DEBUG INFORMATION =========="
+          echo "REPO_SLUG from docker_build job: ${REPO_SLUG}"
+          echo "CI_ENVIRONMENT_NAME: ${CI_ENVIRONMENT_NAME}"
+          echo "TAG from docker_build job: ${TAG}"
+          
           FILE_PATH="./helm/wayabank-microservices/${REPO_SLUG}/${CI_ENVIRONMENT_NAME}-values.yaml"
+          echo "Final FILE_PATH: ${FILE_PATH}"
           echo "Updating $FILE_PATH with new image.repository: ${FULL_IMAGE_WITH_TAG}"
+          echo "======================================="
 
           if [ -z "${FULL_IMAGE_WITH_TAG}" ]; then
             echo "FULL_IMAGE_WITH_TAG is empty. Failing the job."
