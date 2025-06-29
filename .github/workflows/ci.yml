@@ -161,6 +161,18 @@ jobs:
       - name: Checkout this repo
         uses: actions/checkout@v3
 
+      - name: Install yq
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/download/v4.34.1/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+          yq --version || echo "yq installation failed"
+          # Add fallback installation method if the first one fails
+          if [ $? -ne 0 ]; then
+            echo "Trying alternative installation method"
+            sudo apt-get update && sudo apt-get install -y yq
+            yq --version || echo "Alternative installation also failed"
+          fi
+
       - name: Clone waya-helm-charts repo and update values
         run: |
           git clone https://kayodewaya:${GITHUB_PAT}@github.com/WAYA-MULTI-LINK/waya-helm-charts.git
