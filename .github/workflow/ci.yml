@@ -125,7 +125,7 @@ jobs:
           chmod +x /usr/local/bin/argocd
 
       - name: Login to ArgoCD
-        run: argocd login argocd.dev.wayalinks.com --username admin --password WqUNi85pNUJ43A3q --grpc-web --insecure 
+        run: argocd login argocd.stg.wayabank.ng --username admin --password sb722vhvhq8RQKpB --insecure --grpc-web
 
       - name: Check if ArgoCD app exists
         run: |
