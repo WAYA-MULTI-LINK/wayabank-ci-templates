@@ -203,7 +203,7 @@ jobs:
     runs-on: 
       - self-hosted
       - ${{ inputs.RUNNER_LABEL }}
-    needs: [docker_build]
+    needs: [docker_build, helm_update]
     # env:
     #   CI_ENVIRONMENT_NAME: ${{ inputs.CI_ENVIRONMENT_NAME }}
     #   REPO_SLUG: ${{ needs.docker_build.outputs.slug }}
