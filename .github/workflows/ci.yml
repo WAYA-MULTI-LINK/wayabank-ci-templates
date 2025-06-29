@@ -123,7 +123,7 @@ jobs:
           cd waya-helm-charts
 
           FULL_IMAGE_WITH_TAG="${DOCKER_USERNAME}/microservice:${TAG}"
-          FILE_PATH="./helm/microservices/${REPO_SLUG}/${CI_ENVIRONMENT_NAME}-values.yaml"
+          FILE_PATH="./helm/wayabank-microservices/${REPO_SLUG}/${CI_ENVIRONMENT_NAME}-values.yaml"
           echo "Updating $FILE_PATH with new image.repository: ${FULL_IMAGE_WITH_TAG}"
 
           if [ -z "${FULL_IMAGE_WITH_TAG}" ]; then
